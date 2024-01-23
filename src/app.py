@@ -8,7 +8,8 @@ from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User
+from models import db, User, Post
+from datetime import datetime
 #from models import Person
 
 app = Flask(__name__)
@@ -44,6 +45,56 @@ def handle_hello():
     }
 
     return jsonify(response_body), 200
+
+@app.route('/user', methods=['POST'])
+def create_user():
+    body=request.json
+    email=body.get('email', None)
+    password=body.get('password', None)
+
+    if email is None or password is None:
+        return jsonify({'Error': 'email and password required'}),400
+
+    new_user=User(email=email, password=password, is_active=True)
+
+    db.session.add(new_user)
+    try:
+        db.session.commit()
+        return 'User created'
+    except Exception as error:
+        db.session.rollback()
+        return 'an error ocurred'
+
+@app.route('/post/<int:user_id>', methods=['POST'])
+def create_post(user_id):
+    body=request.json
+    description=body.get('description', None)
+    src=body.get('src', None)
+
+    if description is None:
+        return jsonify({'Error': 'description is required'}),400
+    
+    current_date=datetime.now()
+    new_post=Post(description=description, user_id=user_id, time=current_date)
+    if src:
+        new_post.src=src 
+    
+    db.session.add(new_post)
+    try:
+        db.session.commit()
+        return 'Post created'
+    except Exception as error:
+        db.session.rollback()
+        return 'an error ocurred'
+
+@app.route('/get/<int:user_id>', methods=['GET'])
+def get_user(user_id):
+    user=User.query.filter_by(id=user_id).one_or_none()
+    if user is None:
+        return jsonify({'Error': 'user not found'}),404
+    print (user.posts)
+    user_post=[post.serialize() for post in user.posts]
+    return jsonify({'user': user.serialize(), 'posts': user_post})
 
 # this only runs if `$ python src/app.py` is executed
 if __name__ == '__main__':
